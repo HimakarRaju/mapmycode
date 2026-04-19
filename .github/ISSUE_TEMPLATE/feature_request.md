@@ -3,7 +3,7 @@ name: Feature request
 about: Suggest an improvement for MapMyCode
 title: "[Feature]: "
 labels: enhancement
-assignees: ''
+assignees: ""
 ---
 
 ## Problem

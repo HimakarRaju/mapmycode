@@ -3,7 +3,7 @@ name: Bug report
 about: Report a defect in MapMyCode
 title: "[Bug]: "
 labels: bug
-assignees: ''
+assignees: ""
 ---
 
 ## Summary
@@ -19,9 +19,9 @@ Describe the bug clearly.
 
 ## Reproduction
 
-1. 
-2. 
-3. 
+1.
+2.
+3.
 
 ## Expected behavior
 
