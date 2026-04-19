@@ -35,5 +35,8 @@ jobs:
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: mapmycode.vsix
+          files: |
+            mapmycode.vsix
+            media/extension-logo.png
+            media/publisher-logo-hr.png
           generate_release_notes: true

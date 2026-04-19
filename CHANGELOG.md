@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.3
+
+- Added a packaged Marketplace extension icon
+- Included media assets in the published VSIX so icons render correctly in VS Code and Marketplace
+
 ## 0.1.1
 
 - Updated Marketplace publisher metadata to `HimakarRaju`
