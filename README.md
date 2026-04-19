@@ -1,45 +1,56 @@
 # MapMyCode
 
-MapMyCode is a VS Code extension for turning source code into live visual explanations. It helps users inspect algorithms, data structures, web app behavior, and codebase architecture from inside the editor.
+[![CI](https://github.com/HimakarRaju/mapmycode/actions/workflows/ci.yml/badge.svg)](https://github.com/HimakarRaju/mapmycode/actions/workflows/ci.yml)
+[![Release VSIX](https://github.com/HimakarRaju/mapmycode/actions/workflows/release.yml/badge.svg)](https://github.com/HimakarRaju/mapmycode/actions/workflows/release.yml)
+[![Issues](https://img.shields.io/github/issues/HimakarRaju/mapmycode)](https://github.com/HimakarRaju/mapmycode/issues)
+
+[Project artwork](media/hero.svg)
+
+MapMyCode is a VS Code extension for turning source code into live visual explanations. It helps developers inspect algorithms, data structures, web app behavior, and codebase architecture from inside the editor.
 
 ## Download
 
-MapMyCode is being prepared for public distribution.
+MapMyCode now supports a straightforward GitHub-based distribution path.
 
-Current ways to use it:
+1. Download the latest `.vsix` from GitHub Releases once a tagged release is published.
+2. Install it in VS Code with `Extensions: Install from VSIX...`.
+3. For local use, clone the repo and run the extension in an Extension Development Host.
 
-1. Clone this repository and run the extension locally in VS Code.
-2. Build and package a `.vsix` artifact for direct installation.
-3. Publish signed releases on GitHub once the remote repository is live.
+Current package command:
 
-Marketplace publishing can be added after the GitHub repository is connected.
+```bash
+npm run package:vsix:release
+```
 
-## What it does
+Tagged releases matching `v*` automatically build and attach a `.vsix` artifact through GitHub Actions.
 
-- Replays algorithm execution step by step
-- Visualizes arrays, linked lists, trees, graphs, stacks, queues, sets, and hash maps
-- Explores web application routes and request traces
-- Maps file structure, dependencies, classes, metrics, and git history
-- Exports visualizations as HTML or JSON for sharing
+## Why it stands out
 
-## Why teams use it
+- Visual playback for algorithms instead of static logs
+- Structure-aware rendering for common data structures
+- Route and request insight for supported web apps
+- Codebase-level views for dependencies, classes, metrics, and history
+- Export support for HTML and JSON sharing
 
-- Faster debugging through visual trace playback
-- Better onboarding for complex codebases
-- Clearer code reviews and demos
-- A more concrete way to teach data structures and algorithm behavior
+## Core features
 
-## Collaboration
+- Replay algorithm execution step by step
+- Visualize arrays, linked lists, trees, graphs, stacks, queues, sets, and hash maps
+- Explore web application routes and request traces
+- Map file structure, dependencies, classes, metrics, and git history
+- Export visualizations for demos, debugging, and collaboration
 
-This repository is set up for contribution.
+## Collaborate
+
+This repository is configured for public collaboration.
 
 1. Open an issue for bugs or feature proposals.
 2. Fork the repository.
 3. Create a focused branch.
-4. Run the local build before opening a pull request.
+4. Run the build before opening a pull request.
 5. Include screenshots when UI behavior changes.
 
-See `CONTRIBUTING.md` for the working agreement.
+See `CONTRIBUTING.md` for contributor expectations and `.github` templates for issue and PR structure.
 
 ## Local development
 
@@ -48,7 +59,7 @@ See `CONTRIBUTING.md` for the working agreement.
 - Node.js 18+
 - VS Code 1.85+
 
-### Install dependencies
+### Install
 
 ```bash
 npm install
@@ -60,7 +71,7 @@ npm install
 npm run build
 ```
 
-### Watch mode
+### Watch
 
 ```bash
 npm run watch
@@ -68,7 +79,21 @@ npm run watch
 
 Open the folder in VS Code and press `F5` to launch an Extension Development Host.
 
-## Extension commands
+## Packaging and releases
+
+### Create a local `.vsix`
+
+```bash
+npm run package:vsix
+```
+
+### Publish a release artifact on GitHub
+
+1. Create and push a tag such as `v0.1.0`
+2. GitHub Actions builds the extension
+3. The workflow attaches `mapmycode.vsix` to the release
+
+## Commands
 
 - `MapMyCode: Visualize Current File`
 - `MapMyCode: Visualize Selection`
@@ -89,12 +114,6 @@ Open the folder in VS Code and press `F5` to launch an Extension Development Hos
 - `python` for Python tracing helpers
 - `middleware` for runtime instrumentation helpers
 
-## Release path
+## Next publish step
 
-The remaining publish steps are operational rather than code-related:
-
-1. Create the GitHub repository `mapmycode`
-2. Add the remote to this local repository
-3. Push the `main` branch
-4. Publish the extension to the VS Code Marketplace
-5. Attach packaged `.vsix` files to GitHub releases
+The repo is ready for release packaging. The remaining manual step is Marketplace publication, which requires the correct VS Code publisher account and publishing credentials.

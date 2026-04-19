@@ -12,8 +12,17 @@
   "bugs": {
     "url": "https://github.com/HimakarRaju/mapmycode/issues"
   },
+  "files": [
+    "dist",
+    "python",
+    "middleware",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE*",
+    "package.json"
+  ],
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.116.0"
   },
   "categories": [
     "Visualization",
@@ -167,7 +176,9 @@
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.js --production",
     "watch": "node esbuild.js --watch",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "package:vsix": "vsce package --allow-star-activation",
+    "package:vsix:release": "vsce package --allow-star-activation --out mapmycode.vsix"
   },
   "devDependencies": {
     "@babel/generator": "^7.29.1",
@@ -181,6 +192,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.116.0",
+    "@vscode/vsce": "^3.9.1",
     "d3": "^7.9.0",
     "esbuild": "^0.28.0",
     "react": "^19.2.5",

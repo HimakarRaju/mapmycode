@@ -1,0 +1,37 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="640" rx="28" fill="#08111F"/>
+  <rect x="24" y="24" width="1232" height="592" rx="24" fill="url(#bg)"/>
+  <circle cx="1048" cy="128" r="176" fill="#24C8DB" fill-opacity="0.14"/>
+  <circle cx="1140" cy="546" r="220" fill="#F59E0B" fill-opacity="0.12"/>
+  <circle cx="242" cy="116" r="138" fill="#10B981" fill-opacity="0.12"/>
+  <rect x="76" y="96" width="500" height="448" rx="22" fill="#06101B" stroke="#2A3D53"/>
+  <rect x="104" y="136" width="444" height="28" rx="8" fill="#13283E"/>
+  <rect x="104" y="186" width="228" height="14" rx="7" fill="#1E3A5C"/>
+  <rect x="104" y="218" width="390" height="10" rx="5" fill="#15304D"/>
+  <rect x="104" y="250" width="356" height="10" rx="5" fill="#15304D"/>
+  <rect x="104" y="282" width="298" height="10" rx="5" fill="#15304D"/>
+  <rect x="104" y="336" width="164" height="120" rx="14" fill="#0C1A2B" stroke="#27425A"/>
+  <rect x="290" y="336" width="114" height="120" rx="14" fill="#0C1A2B" stroke="#27425A"/>
+  <rect x="426" y="336" width="122" height="120" rx="14" fill="#0C1A2B" stroke="#27425A"/>
+  <path d="M638 182C638 163.222 653.222 148 672 148H1152C1170.78 148 1186 163.222 1186 182V458C1186 476.778 1170.78 492 1152 492H672C653.222 492 638 476.778 638 458V182Z" fill="#071523" stroke="#35506B"/>
+  <path d="M740 258L814 220L888 258V336L814 374L740 336V258Z" fill="#0F5E9C" stroke="#24C8DB" stroke-width="3"/>
+  <path d="M850 258L922 220L998 258V336L922 374L850 336V258Z" fill="#0C7A6D" stroke="#10B981" stroke-width="3"/>
+  <path d="M960 258L1036 220L1110 258V336L1036 374L960 336V258Z" fill="#9A5E09" stroke="#F59E0B" stroke-width="3"/>
+  <path d="M814 220V374" stroke="#8EE6F0" stroke-width="3"/>
+  <path d="M922 220V374" stroke="#7CE7C2" stroke-width="3"/>
+  <path d="M1036 220V374" stroke="#F8C56C" stroke-width="3"/>
+  <rect x="706" y="398" width="412" height="16" rx="8" fill="#17324D"/>
+  <rect x="706" y="430" width="282" height="16" rx="8" fill="#17324D"/>
+  <path d="M637 90H746" stroke="#24C8DB" stroke-width="10" stroke-linecap="round"/>
+  <path d="M778 90H882" stroke="#10B981" stroke-width="10" stroke-linecap="round"/>
+  <path d="M914 90H1038" stroke="#F59E0B" stroke-width="10" stroke-linecap="round"/>
+  <text x="76" y="74" fill="#E7F2FF" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">MapMyCode</text>
+  <text x="76" y="580" fill="#9CC3E8" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">Visualize algorithms, app flows, and codebase structure inside VS Code.</text>
+  <defs>
+    <linearGradient id="bg" x1="44" y1="40" x2="1236" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0D1B2A"/>
+      <stop offset="0.54" stop-color="#10243A"/>
+      <stop offset="1" stop-color="#0E1725"/>
+    </linearGradient>
+  </defs>
+</svg>

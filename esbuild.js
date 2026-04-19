@@ -1,5 +1,6 @@
 // @ts-check
 const esbuild = require('esbuild');
+const fs = require('fs');
 
 const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
@@ -35,6 +36,8 @@ const webviewConfig = {
 };
 
 async function main() {
+  fs.rmSync('dist', { recursive: true, force: true });
+
   if (watch) {
     const extCtx = await esbuild.context(extensionConfig);
     const webCtx = await esbuild.context(webviewConfig);
