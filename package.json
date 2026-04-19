@@ -1,0 +1,190 @@
+{
+  "name": "mapmycode",
+  "displayName": "MapMyCode — Algorithm & Data Structure Visualizer",
+  "description": "Visualize data structures, algorithms, and codebases in real time. Step-by-step playback, interactive graphs, and more.",
+  "version": "0.1.0",
+  "publisher": "mapmycode",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mapmycode/mapmycode.git"
+  },
+  "homepage": "https://github.com/mapmycode/mapmycode#readme",
+  "bugs": {
+    "url": "https://github.com/mapmycode/mapmycode/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Visualization",
+    "Education",
+    "Debuggers"
+  ],
+  "keywords": [
+    "algorithm",
+    "data structure",
+    "visualization",
+    "binary tree",
+    "linked list",
+    "graph",
+    "sorting",
+    "codebase"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mapmycode.visualize",
+        "title": "Visualize Current File",
+        "category": "MapMyCode",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mapmycode.visualizeSelection",
+        "title": "Visualize Selection",
+        "category": "MapMyCode"
+      },
+      {
+        "command": "mapmycode.openTemplates",
+        "title": "Open Algorithm Templates",
+        "category": "MapMyCode",
+        "icon": "$(library)"
+      },
+      {
+        "command": "mapmycode.visualizeApp",
+        "title": "Visualize Web App",
+        "category": "MapMyCode",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "mapmycode.stopApp",
+        "title": "Stop Visualized App",
+        "category": "MapMyCode",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "mapmycode.exportHTML",
+        "title": "Export Visualization as HTML",
+        "category": "MapMyCode",
+        "icon": "$(export)"
+      },
+      {
+        "command": "mapmycode.exportJSON",
+        "title": "Export Trace as JSON",
+        "category": "MapMyCode"
+      },
+      {
+        "command": "mapmycode.visualizeCodebase",
+        "title": "Visualize Codebase",
+        "category": "MapMyCode",
+        "icon": "$(type-hierarchy)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "mapmycode.visualize",
+          "when": "resourceLangId == javascript || resourceLangId == python || resourceLangId == typescript",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "mapmycode.visualize",
+          "when": "resourceLangId == javascript || resourceLangId == python || resourceLangId == typescript",
+          "group": "mapmycode@1"
+        },
+        {
+          "command": "mapmycode.visualizeSelection",
+          "when": "editorHasSelection && (resourceLangId == javascript || resourceLangId == python || resourceLangId == typescript)",
+          "group": "mapmycode@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "mapmycode.visualize",
+          "when": "resourceLangId == javascript || resourceLangId == python || resourceLangId == typescript"
+        },
+        {
+          "command": "mapmycode.visualizeSelection",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "mapmycode.openTemplates"
+        },
+        {
+          "command": "mapmycode.visualizeApp"
+        },
+        {
+          "command": "mapmycode.stopApp"
+        },
+        {
+          "command": "mapmycode.exportHTML"
+        },
+        {
+          "command": "mapmycode.exportJSON"
+        },
+        {
+          "command": "mapmycode.visualizeCodebase"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MapMyCode",
+      "properties": {
+        "mapmycode.nodePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Node.js executable. Leave empty to auto-detect."
+        },
+        "mapmycode.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Python executable. Leave empty to auto-detect."
+        },
+        "mapmycode.timeout": {
+          "type": "number",
+          "default": 10000,
+          "description": "Maximum execution time in milliseconds (default: 10000)."
+        },
+        "mapmycode.maxSteps": {
+          "type": "number",
+          "default": 5000,
+          "description": "Maximum number of execution trace steps."
+        },
+        "mapmycode.defaultSpeed": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.1,
+          "maximum": 10,
+          "description": "Default playback speed multiplier."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@babel/generator": "^7.29.1",
+    "@babel/parser": "^7.29.2",
+    "@babel/traverse": "^7.29.0",
+    "@babel/types": "^7.29.0",
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/d3": "^7.4.3",
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.116.0",
+    "d3": "^7.9.0",
+    "esbuild": "^0.28.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "typescript": "^6.0.3"
+  }
+}
