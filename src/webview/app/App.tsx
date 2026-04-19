@@ -7,6 +7,7 @@ import { RouteMap } from './components/RouteMap';
 import { RequestMonitor } from './components/RequestMonitor';
 import { FileTreeView } from './codebase/FileTreeView';
 import { DependencyGraphView } from './codebase/DependencyGraphView';
+import { CallGraphView } from './codebase/CallGraphView';
 import { ClassDiagramView } from './codebase/ClassDiagramView';
 import { MetricsView } from './codebase/MetricsView';
 import { GitHistoryView } from './codebase/GitHistoryView';
@@ -42,24 +43,34 @@ interface AppState {
 }
 
 export function App() {
-  const [state, setState] = useState<AppState>({
-    viewMode: 'algorithm',
-    error: null,
-    trace: null,
-    currentStep: 0,
-    isPlaying: false,
-    speed: 1,
-    zoom: 1,
-    code: '',
-    language: 'javascript',
-    complexity: null,
-    appStructure: null,
-    appRequests: [],
-    appTab: 'routes',
-    appRunning: false,
-    codebaseView: null,
-    codebaseData: null,
+  const [state, setState] = useState<AppState>(() => {
+    const s = vscode.getState();
+    if (s) {
+      return { ...s, isPlaying: false }; // Never resume playback automatically
+    }
+    return {
+      viewMode: 'algorithm',
+      error: null,
+      trace: null,
+      currentStep: 0,
+      isPlaying: false,
+      speed: 1,
+      zoom: 1,
+      code: '',
+      language: 'javascript',
+      complexity: null,
+      appStructure: null,
+      appRequests: [],
+      appTab: 'routes',
+      appRunning: false,
+      codebaseView: null,
+      codebaseData: null,
+    };
   });
+
+  useEffect(() => {
+    vscode.setState(state);
+  }, [state]);
 
   // Listen for messages from extension host
   useEffect(() => {
@@ -67,16 +78,25 @@ export function App() {
       const msg = event.data;
       switch (msg.type) {
         case 'trace':
+          {
+            const hasUserFunctionCalls = msg.data.steps.some((step: ExecutionTrace['steps'][number]) =>
+              step.event === 'call' && step.functionName && step.functionName !== '<module>'
+            );
+            const firstVisibleStepIndex = msg.data.steps.findIndex((step: ExecutionTrace['steps'][number]) =>
+              typeof step.line === 'number' && step.line > 0,
+            );
           setState((s) => ({
             ...s,
             viewMode: 'algorithm',
             trace: msg.data,
             code: msg.data.code,
-            currentStep: 0,
+            language: msg.data.language,
+            currentStep: hasUserFunctionCalls ? 0 : Math.max(firstVisibleStepIndex, 0),
             isPlaying: false,
-            error: null,
+            error: msg.data.error ?? null,
             complexity: null,
           }));
+          }
           break;
         case 'error':
           setState((s) => ({ ...s, error: msg.data, isPlaying: false }));
@@ -151,6 +171,9 @@ export function App() {
 
   const totalSteps = state.trace?.totalSteps ?? 0;
   const currentTraceStep = state.trace?.steps[state.currentStep] ?? null;
+  const hasUserFunctionCalls = state.trace?.steps.some((step) =>
+    step.event === 'call' && step.functionName && step.functionName !== '<module>'
+  ) ?? false;
 
   const onPlay = useCallback(() => setState((s) => ({ ...s, isPlaying: true })), []);
   const onPause = useCallback(() => setState((s) => ({ ...s, isPlaying: false })), []);
@@ -177,6 +200,15 @@ export function App() {
   }, []);
   const onStepChange = useCallback((step: number) => {
     setState((s) => ({ ...s, currentStep: step, isPlaying: false }));
+  }, []);
+  const onExportStep = useCallback((step: number) => {
+    vscode.postMessage({ type: 'exportMarkdownStep', step });
+  }, []);
+  const onExportHTML = useCallback(() => {
+    vscode.postMessage({ type: 'exportHTML' });
+  }, []);
+  const onExportJSON = useCallback(() => {
+    vscode.postMessage({ type: 'exportJSON' });
   }, []);
 
   const onRouteClick = useCallback((route: RouteInfo) => {
@@ -213,12 +245,33 @@ export function App() {
     vscode.postMessage({ type: 'openFile', path: filePath });
   }, []);
 
+  const onCodebaseSymbolClick = useCallback((filePath: string, line: number) => {
+    vscode.postMessage({ type: 'openFile', path: filePath, line });
+  }, []);
+
+  const activeCodebaseTitle = state.codebaseView === 'dependencies'
+    ? 'Dependency Network'
+    : state.codebaseView === 'callGraph'
+      ? 'Call Graph'
+      : state.codebaseView === 'fileTree'
+        ? 'File Structure'
+        : state.codebaseView === 'classDiagram'
+          ? 'Class Diagram'
+          : state.codebaseView === 'metrics'
+            ? 'Code Metrics'
+            : state.codebaseView === 'gitHistory'
+              ? 'Git History'
+              : 'Codebase';
+
   // Codebase visualization mode
   if (state.viewMode === 'codebase' && state.codebaseView) {
     return (
       <div style={styles.container}>
         <div style={styles.topBar}>
-          <span style={styles.title}>MapMyCode — Codebase</span>
+          <div style={{ display: 'flex', flexDirection: 'column' as const, gap: 2 }}>
+            <span style={styles.title}>MapMyCode — {activeCodebaseTitle}</span>
+            <span style={{ fontSize: 11, opacity: 0.7 }}>Static workspace visualization</span>
+          </div>
         </div>
         <div style={{ flex: 1, overflow: 'hidden' }}>
           {state.codebaseView === 'fileTree' && (
@@ -227,8 +280,11 @@ export function App() {
           {state.codebaseView === 'dependencies' && (
             <DependencyGraphView graph={state.codebaseData} onNodeClick={onCodebaseFileClick} />
           )}
+          {state.codebaseView === 'callGraph' && (
+            <CallGraphView graph={state.codebaseData} onNodeClick={onCodebaseSymbolClick} />
+          )}
           {state.codebaseView === 'classDiagram' && (
-            <ClassDiagramView classes={state.codebaseData} onClassClick={(f, l) => vscode.postMessage({ type: 'openFile', path: f })} />
+            <ClassDiagramView classes={state.codebaseData} onClassClick={onCodebaseSymbolClick} />
           )}
           {state.codebaseView === 'metrics' && (
             <MetricsView metrics={state.codebaseData} onFileClick={onCodebaseFileClick} />
@@ -310,10 +366,15 @@ export function App() {
         {/* Code pane */}
         <div style={styles.codeSection}>
           <CodePane
-            code={state.trace?.code ?? state.code}
+            code={
+              (currentTraceStep?.file && state.trace?.files?.[currentTraceStep.file])
+                ? state.trace.files[currentTraceStep.file]
+                : (state.trace?.code ?? state.code)
+            }
             activeLine={currentTraceStep?.line ?? null}
             language={state.language}
             onLineClick={onLineClick}
+            filename={currentTraceStep?.file}
           />
         </div>
 
@@ -325,11 +386,18 @@ export function App() {
               <pre style={styles.errorText}>{state.error}</pre>
             </div>
           ) : state.trace ? (
-            <VisualizationCanvas
-              trace={state.trace}
-              currentStep={state.currentStep}
-              zoom={state.zoom}
-            />
+            <div style={styles.traceContent}>
+              {!hasUserFunctionCalls && (
+                <div style={styles.infoBanner}>
+                  Only imports and top-level definitions ran. Function bodies were not executed, so the trace cannot go deeper until the file actually calls something.
+                </div>
+              )}
+              <VisualizationCanvas
+                trace={state.trace}
+                currentStep={state.currentStep}
+                zoom={state.zoom}
+              />
+            </div>
           ) : (
             <div style={styles.placeholder}>
               <div style={styles.placeholderIcon}>▶</div>
@@ -358,6 +426,9 @@ export function App() {
         onSpeedChange={onSpeedChange}
         onZoomChange={onZoomChange}
         onStepChange={onStepChange}
+        onExportStep={onExportStep}
+        onExportHTML={onExportHTML}
+        onExportJSON={onExportJSON}
         disabled={!state.trace}
       />
     </div>
@@ -404,6 +475,20 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  traceContent: {
+    width: '100%',
+    height: '100%',
+    overflow: 'auto',
+  },
+  infoBanner: {
+    margin: '12px 16px 0',
+    padding: '10px 12px',
+    borderRadius: 6,
+    background: 'var(--vscode-textBlockQuote-background)',
+    borderLeft: '3px solid var(--vscode-textLink-foreground)',
+    fontSize: 12,
+    opacity: 0.9,
   },
   placeholder: {
     textAlign: 'center' as const,

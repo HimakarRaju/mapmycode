@@ -21,22 +21,6 @@ export function instrumentJS(
     allowReturnOutsideFunction: true,
   });
 
-  // Collect all user-defined function names
-  const userFunctions = new Set<string>();
-  traverse(ast, {
-    FunctionDeclaration(path) {
-      if (path.node.id) userFunctions.add(path.node.id.name);
-    },
-    VariableDeclarator(path) {
-      if (
-        t.isIdentifier(path.node.id) &&
-        (t.isFunctionExpression(path.node.init) || t.isArrowFunctionExpression(path.node.init))
-      ) {
-        userFunctions.add(path.node.id.name);
-      }
-    },
-  });
-
   // Build the runtime preamble
   const preamble = buildPreamble(maxSteps, annotations);
 
@@ -46,61 +30,105 @@ export function instrumentJS(
     ExpressionStatement(path) {
       if (isTraceCall(path.node)) return;
       const line = path.node.loc?.start.line ?? 0;
-      path.insertAfter(buildTraceCall(line, 'line'));
-    },
 
-    // Variable declarations
-    VariableDeclaration(path) {
-      if (path.parentPath.isForStatement() || path.parentPath.isForInStatement() || path.parentPath.isForOfStatement()) return;
-      const line = path.node.loc?.start.line ?? 0;
-      path.insertAfter(buildTraceCall(line, 'line'));
-    },
+      const registerStatements: t.Statement[] = [];
+      if (t.isAssignmentExpression(path.node.expression)) {
+          registerStatements.push(...buildRegisterStatementsFromPattern(path.node.expression.left as t.LVal));
+        }
+        if (t.isUpdateExpression(path.node.expression) && t.isIdentifier(path.node.expression.argument)) {
+          registerStatements.push(buildRegisterStatement(path.node.expression.argument.name));
+        }
 
-    // Return statements — wrap to capture value
-    ReturnStatement(path) {
-      const line = path.node.loc?.start.line ?? 0;
-      if (path.node.argument) {
+        path.insertAfter([...registerStatements, t.expressionStatement(buildTraceCall(line, 'line'))]);
+      },
+
+      // Variable declarations
+      VariableDeclaration(path) {
+        if (path.parentPath.isForStatement() || path.parentPath.isForInStatement() || path.parentPath.isForOfStatement()) return;
+        const line = path.node.loc?.start.line ?? 0;
+        const registerStatements = path.node.declarations.flatMap((decl) => buildRegisterStatementsFromPattern(decl.id as t.LVal));
+        path.insertAfter([...registerStatements, t.expressionStatement(buildTraceCall(line, 'line'))]);
+      },
+
+      // Return statements — wrap to capture value
+      ReturnStatement(path) {
+        const line = path.node.loc?.start.line ?? 0;
+        const fnName = getFunctionName(path.getFunctionParent()?.node, path.getFunctionParent()) ?? '<anonymous>';
+        if (path.node.argument) {
         const tmpVar = path.scope.generateUidIdentifier('ret');
         const decl = t.variableDeclaration('const', [
           t.variableDeclarator(tmpVar, path.node.argument),
         ]);
         const traceCall = t.expressionStatement(
-          t.callExpression(t.identifier('__trace'), [
+          t.callExpression(t.identifier('__traceReturn'), [
             t.numericLiteral(line),
-            t.stringLiteral('return'),
-            t.identifier('__captureVars'),
-            t.callExpression(t.identifier('__captureVars'), []),
+            t.stringLiteral(fnName),
             tmpVar,
           ]),
         );
         const newReturn = t.returnStatement(tmpVar);
         path.replaceWithMultiple([decl, traceCall, newReturn]);
         path.skip();
+      } else {
+        path.insertBefore(
+          t.expressionStatement(
+            t.callExpression(t.identifier('__traceReturn'), [
+              t.numericLiteral(line),
+              t.stringLiteral(fnName),
+            ]),
+          ),
+        );
       }
     },
 
     // Function entry — insert trace at beginning of function body
-    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression'(path: any) {
+    'FunctionDeclaration|FunctionExpression|ArrowFunctionExpression|ClassMethod|ObjectMethod'(path: any) {
       const node = path.node;
-      const fnName = node.id?.name ?? '<anonymous>';
+      const fnName = getFunctionName(node, path) ?? '<anonymous>';
       if (annotations.skipFunction?.includes(fnName)) return;
 
       const line = node.loc?.start.line ?? 0;
       const params = (node.params || [])
         .filter((p: any) => t.isIdentifier(p))
-        .map((p: any) => t.stringLiteral(p.name));
+        .map((p: any) => p.name);
 
       const callTrace = t.expressionStatement(
         t.callExpression(t.identifier('__traceCall'), [
           t.numericLiteral(line),
           t.stringLiteral(fnName),
-          t.arrayExpression(params),
+          t.arrayExpression(params.map((name: string) => t.stringLiteral(name))),
+          t.arrayExpression(params.map((name: string) => t.identifier(name))),
         ]),
       );
 
       // Ensure body is a block statement
       if (t.isBlockStatement(node.body)) {
         node.body.body.unshift(callTrace);
+        if (!endsWithReturnStatement(node.body.body)) {
+          node.body.body.push(
+            t.expressionStatement(
+              t.callExpression(t.identifier('__traceReturn'), [
+                t.numericLiteral(node.body.loc?.end.line ?? line),
+                t.stringLiteral(fnName),
+              ]),
+            ),
+          );
+        }
+      } else if (t.isArrowFunctionExpression(node)) {
+        const originalBody = node.body;
+        const tmpVar = path.scope.generateUidIdentifier('ret');
+        node.body = t.blockStatement([
+          callTrace,
+          t.variableDeclaration('const', [t.variableDeclarator(tmpVar, originalBody)]),
+          t.expressionStatement(
+            t.callExpression(t.identifier('__traceReturn'), [
+              t.numericLiteral(node.loc?.end.line ?? line),
+              t.stringLiteral(fnName),
+              tmpVar,
+            ]),
+          ),
+          t.returnStatement(tmpVar),
+        ]);
       }
     },
 
@@ -145,14 +173,94 @@ function buildTraceCall(line: number, event: string): t.Expression {
   ]);
 }
 
+function buildRegisterStatement(name: string): t.Statement {
+  return t.expressionStatement(
+    t.callExpression(t.identifier('__registerVar'), [
+      t.stringLiteral(name),
+      t.identifier(name),
+    ]),
+  );
+}
+
+function buildRegisterStatementsFromPattern(pattern: t.LVal): t.Statement[] {
+  if (t.isIdentifier(pattern)) {
+    return [buildRegisterStatement(pattern.name)];
+  }
+
+  if (t.isRestElement(pattern)) {
+    return buildRegisterStatementsFromPattern(pattern.argument as t.LVal);
+  }
+
+  if (t.isObjectPattern(pattern)) {
+    return pattern.properties.flatMap((property) => {
+      if (t.isRestElement(property)) {
+        return buildRegisterStatementsFromPattern(property.argument as t.LVal);
+      }
+      if (t.isObjectProperty(property)) {
+        return buildRegisterStatementsFromPattern(property.value as t.LVal);
+      }
+      return [];
+    });
+  }
+
+  if (t.isArrayPattern(pattern)) {
+    return pattern.elements.flatMap((element) => {
+      if (!element) {
+        return [];
+      }
+      if (t.isRestElement(element)) {
+        return buildRegisterStatementsFromPattern(element.argument as t.LVal);
+      }
+      return buildRegisterStatementsFromPattern(element as t.LVal);
+    });
+  }
+
+  return [];
+}
+
 function isTraceCall(node: t.ExpressionStatement): boolean {
   return (
     t.isCallExpression(node.expression) &&
     t.isIdentifier(node.expression.callee) &&
     (node.expression.callee.name === '__trace' ||
       node.expression.callee.name === '__traceCall' ||
+      node.expression.callee.name === '__traceReturn' ||
+      node.expression.callee.name === '__registerVar' ||
       node.expression.callee.name === '__finalize')
   );
+}
+
+function endsWithReturnStatement(body: t.Statement[]): boolean {
+  return body.length > 0 && t.isReturnStatement(body[body.length - 1]);
+}
+
+function getFunctionName(node: any, path?: any): string | undefined {
+  if (!node) {
+    return undefined;
+  }
+
+  if (node.id?.name) {
+    return node.id.name;
+  }
+
+  if (path?.parentPath?.isVariableDeclarator() && t.isIdentifier(path.parentPath.node.id)) {
+    return path.parentPath.node.id.name;
+  }
+
+  if ((path?.isObjectMethod?.() || path?.parentPath?.isObjectProperty?.()) && node.key) {
+    if (t.isIdentifier(node.key)) {
+      return node.key.name;
+    }
+    if (t.isStringLiteral(node.key)) {
+      return node.key.value;
+    }
+  }
+
+  if (path?.isClassMethod?.() && node.key && t.isIdentifier(node.key)) {
+    return node.key.name;
+  }
+
+  return undefined;
 }
 
 function buildPreamble(maxSteps: number, annotations: AnnotationConfig): string {
@@ -163,14 +271,6 @@ let __stepCount = 0;
 const __MAX_STEPS = ${maxSteps};
 const __scopes = [{}];
 
-function __captureVars() {
-  const vars = {};
-  for (let i = __scopes.length - 1; i >= 0; i--) {
-    Object.assign(vars, __scopes[i]);
-  }
-  return vars;
-}
-
 function __classifyDS(value) {
   if (value === null || value === undefined) return 'primitive';
   if (Array.isArray(value)) {
@@ -180,9 +280,29 @@ function __classifyDS(value) {
   if (typeof value !== 'object') return 'primitive';
   if (value instanceof Set) return 'set';
   if (value instanceof Map) return 'hashMap';
+  if (value && typeof value === 'object') {
+    var ctorName = value.constructor && value.constructor.name ? String(value.constructor.name).toLowerCase() : '';
+    if (ctorName.indexOf('queue') >= 0 || ctorName.indexOf('deque') >= 0) return 'queue';
+    if (ctorName.indexOf('stack') >= 0) return 'stack';
+    if (ctorName.indexOf('graph') >= 0) return 'graph';
+  }
   if ('next' in value && 'val' in value) return 'linkedList';
   if ('left' in value && 'right' in value) return 'binaryTree';
+  if (__looksLikeGraph(value)) return 'graph';
   return 'object';
+}
+
+function __looksLikeGraph(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  var keys = Object.keys(value);
+  if (keys.length === 0) return false;
+  for (var i = 0; i < Math.min(keys.length, 12); i++) {
+    var neighbors = value[keys[i]];
+    if (Array.isArray(neighbors)) continue;
+    if (neighbors && typeof neighbors === 'object' && ('neighbors' in neighbors || 'edges' in neighbors)) continue;
+    return false;
+  }
+  return true;
 }
 
 function __serializeValue(val, depth) {
@@ -191,7 +311,7 @@ function __serializeValue(val, depth) {
   if (val === null || val === undefined) return val;
   if (typeof val !== 'object') return val;
   if (Array.isArray(val)) return val.map(function(v) { return __serializeValue(v, depth + 1); });
-  if (val instanceof Set) return Array.from(val);
+  if (val instanceof Set) return Array.from(val).map(function(v) { return __serializeValue(v, depth + 1); });
   if (val instanceof Map) {
     var obj = {};
     val.forEach(function(v, k) { obj[String(k)] = __serializeValue(v, depth + 1); });
@@ -208,7 +328,6 @@ function __serializeValue(val, depth) {
 function __trace(line, event, fnName, args, retVal) {
   if (__stepCount >= __MAX_STEPS) return;
   __stepCount++;
-  // Capture variables from the calling scope via injected assignments
   var step = {
     step: __stepCount,
     line: line,
@@ -230,11 +349,23 @@ function __trace(line, event, fnName, args, retVal) {
     });
   }
   __steps.push(step);
+  if (event === 'return' && __scopes.length > 1) {
+    __scopes.pop();
+  }
 }
 
-function __traceCall(line, fnName, paramNames) {
+function __traceCall(line, fnName, paramNames, args) {
   __scopes.push({});
-  __trace(line, 'call', fnName);
+  if (Array.isArray(paramNames) && Array.isArray(args)) {
+    for (var i = 0; i < paramNames.length; i++) {
+      __registerVar(paramNames[i], args[i]);
+    }
+  }
+  __trace(line, 'call', fnName, args || undefined);
+}
+
+function __traceReturn(line, fnName, retVal) {
+  __trace(line, 'return', fnName, undefined, retVal);
 }
 
 function __registerVar(name, value) {

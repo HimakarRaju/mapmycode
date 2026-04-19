@@ -4,7 +4,7 @@ import type { FileNode } from './codebaseTypes';
 
 const IGNORE_DIRS = new Set([
   'node_modules', '.git', '__pycache__', '.vscode', 'dist', 'build',
-  '.next', '.nuxt', 'coverage', '.tox', 'venv', '.venv', 'env',
+  '.next', '.nuxt', 'coverage', '.tox', 'venv', '.venv', 'env', '.mapmycode',
 ]);
 const MAX_DEPTH = 8;
 

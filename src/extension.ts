@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { MapMyCodePanel } from './webview/WebviewProvider';
 import { Executor } from './executor/executor';
@@ -14,9 +15,14 @@ import { ThemeSync } from './features/themeSync';
 import { validateCode } from './features/securitySandbox';
 import { buildFileTree } from './codebase/fileStructure';
 import { analyzeDependencies } from './codebase/dependencyAnalyzer';
+import { analyzeCallGraph } from './codebase/callGraphAnalyzer';
+import { RuntimeHighlighter } from './features/runtimeHighlighter';
 import { analyzeClasses } from './codebase/classAnalyzer';
 import { analyzeCodeMetrics } from './codebase/metricsAnalyzer';
 import { getGitHistory } from './codebase/gitHistory';
+import type { CodebaseViewType } from './codebase/codebaseTypes';
+import { MapMyCodeExploreProvider, MapMyCodeHistoryProvider } from './sidebar/MapMyCodeSidebar';
+import { TraceHistoryStore } from './history/traceHistory';
 
 export function activate(context: vscode.ExtensionContext) {
   const executor = new Executor(context);
@@ -24,27 +30,163 @@ export function activate(context: vscode.ExtensionContext) {
   const breakpointSync = new BreakpointSync();
   const exporter = new Exporter();
   const themeSync = new ThemeSync();
+  const historyStore = new TraceHistoryStore();
+  const exploreProvider = new MapMyCodeExploreProvider();
+  const historyProvider = new MapMyCodeHistoryProvider(historyStore);
   let appLauncher: AppLauncher | null = null;
   let lastTrace: import('./instrumenter/traceSchema').ExecutionTrace | null = null;
+  let playbackMessagePanel: MapMyCodePanel | null = null;
+  let appMessagePanel: MapMyCodePanel | null = null;
+  let lastCodeEditor: vscode.TextEditor | undefined = isSupportedEditor(vscode.window.activeTextEditor)
+    ? vscode.window.activeTextEditor
+    : undefined;
 
   // Register CodeLens provider
   const codeLensProvider = new MapMyCodeLensProvider();
   context.subscriptions.push(
+    vscode.window.createTreeView('mapmycode.explore', {
+      treeDataProvider: exploreProvider,
+      showCollapseAll: false,
+    }),
+    vscode.window.createTreeView('mapmycode.history', {
+      treeDataProvider: historyProvider,
+      showCollapseAll: false,
+    }),
     vscode.languages.registerCodeLensProvider(
       [{ language: 'javascript' }, { language: 'typescript' }, { language: 'python' }],
       codeLensProvider,
     ),
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (isSupportedEditor(editor)) {
+        lastCodeEditor = editor;
+      }
+      RuntimeHighlighter.getInstance().applyHighlights(editor);
+    }),
+    RuntimeHighlighter.getInstance(),
     breakpointSync,
     themeSync,
+    historyStore,
+    historyProvider,
   );
 
+  const getWorkspaceRoot = (): string | undefined => vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+
+  const showCodebaseView = async (viewType: CodebaseViewType) => {
+    const workspaceRoot = getWorkspaceRoot();
+    if (!workspaceRoot) {
+      vscode.window.showWarningMessage('MapMyCode: Open a workspace folder first.');
+      return;
+    }
+
+    const panel = MapMyCodePanel.createOrShow(context);
+
+    try {
+      let payload: unknown;
+      switch (viewType) {
+        case 'fileTree':
+          payload = buildFileTree(workspaceRoot);
+          break;
+        case 'dependencies':
+          payload = analyzeDependencies(workspaceRoot);
+          break;
+        case 'callGraph':
+          payload = analyzeCallGraph(workspaceRoot);
+          break;
+        case 'classDiagram':
+          payload = analyzeClasses(workspaceRoot);
+          break;
+        case 'metrics':
+          payload = analyzeCodeMetrics(workspaceRoot);
+          break;
+        case 'gitHistory':
+          payload = await getGitHistory(workspaceRoot);
+          break;
+        default:
+          return;
+      }
+
+      panel.sendCodebaseView(viewType, payload);
+      historyStore.recordCodebaseView(viewType, payload, workspaceRoot);
+    } catch (err: any) {
+      panel.sendError(`Codebase analysis failed: ${err.message}`);
+    }
+  };
+
   context.subscriptions.push(
-    vscode.commands.registerCommand('mapmycode.visualize', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showWarningMessage('MapMyCode: No active editor.');
+    vscode.commands.registerCommand('mapmycode.openPanel', () => {
+      MapMyCodePanel.createOrShow(context);
+    }),
+
+    vscode.commands.registerCommand('mapmycode.refreshHistory', () => {
+      historyProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand('mapmycode.showCodebaseView', async (viewType: CodebaseViewType) => {
+      await showCodebaseView(viewType);
+    }),
+
+    vscode.commands.registerCommand('mapmycode.showDependencyNetwork', async () => {
+      await showCodebaseView('dependencies');
+    }),
+
+    vscode.commands.registerCommand('mapmycode.showCallGraph', async () => {
+      await showCodebaseView('callGraph');
+    }),
+
+    vscode.commands.registerCommand('mapmycode.openHistoryEntry', async (entryId: string | { id: string }) => {
+      const id = typeof entryId === 'string' ? entryId : entryId?.id;
+      if (!id) return;
+      const snapshot = historyStore.loadEntry(id, getWorkspaceRoot());
+      if (!snapshot) {
+        vscode.window.showWarningMessage('MapMyCode: Saved trace entry could not be loaded.');
+        historyProvider.refresh();
         return;
       }
+
+      const panel = MapMyCodePanel.createOrShow(context);
+      switch (snapshot.kind) {
+        case 'trace': {
+          lastTrace = snapshot.trace;
+          panel.sendTrace(snapshot.trace);
+          panel.sendComplexity(analyzeComplexity(snapshot.trace));
+          const highlighter = RuntimeHighlighter.getInstance();
+          highlighter.setTrace(snapshot.trace, snapshot.entry.sourcePath);
+          break;
+        }
+        case 'codebase':
+          panel.sendCodebaseView(snapshot.viewType, snapshot.payload);
+          break;
+        case 'app':
+          panel.sendAppStructure(snapshot.structure);
+          panel.sendAppStatus(false);
+          break;
+      }
+    }),
+
+    vscode.commands.registerCommand('mapmycode.deleteHistoryEntry', async (entry: any) => {
+      if (entry && entry.id) {
+        historyStore.deleteEntry(entry.id, getWorkspaceRoot());
+      }
+    }),
+
+    vscode.commands.registerCommand('mapmycode.clearHistory', async () => {
+      const viewType = await vscode.window.showWarningMessage(
+        'Are you sure you want to clear all MapMyCode history?',
+        'Clear History',
+        'Cancel'
+      );
+      if (viewType === 'Clear History') {
+        historyStore.clearHistory(getWorkspaceRoot());
+      }
+    }),
+
+    vscode.commands.registerCommand('mapmycode.visualize', async () => {
+      const editor = resolveTargetEditor(lastCodeEditor);
+      if (!editor) {
+        vscode.window.showWarningMessage('MapMyCode: No supported code editor found. Focus a JavaScript, TypeScript, or Python file and try again.');
+        return;
+      }
+      lastCodeEditor = editor;
       const code = editor.document.getText();
       const lang = mapLanguageId(editor.document.languageId);
       if (!lang) {
@@ -65,35 +207,39 @@ export function activate(context: vscode.ExtensionContext) {
       breakpointSync.setSource(editor.document.uri);
       const panel = MapMyCodePanel.createOrShow(context);
 
-      // Listen for breakpoint-aware playback messages
-      panel.onMessage((msg) => {
-        if (msg.type === 'checkBreakpoint') {
-          const shouldPause = breakpointSync.shouldPause(msg.line);
-          (panel as any).panel?.webview?.postMessage({
-            type: 'breakpointHit', data: { line: msg.line, shouldPause }
-          });
-        }
-      });
+      if (playbackMessagePanel !== panel) {
+        panel.onMessage((msg) => {
+          if (msg.type === 'checkBreakpoint') {
+            const shouldPause = breakpointSync.shouldPause(msg.line);
+            panel.sendBreakpointHit(msg.line, shouldPause);
+          }
+        });
+        playbackMessagePanel = panel;
+      }
 
       try {
-        const trace = await executor.execute(code, lang);
+        const trace = await executor.execute(code, lang, editor.document.uri.fsPath);
         lastTrace = trace;
         panel.sendTrace(trace);
 
         // Send complexity analysis
         const complexity = analyzeComplexity(trace);
-        (panel as any).panel?.webview?.postMessage({ type: 'complexity', data: complexity });
+        panel.sendComplexity(complexity);
+        historyStore.recordTrace(trace, { sourcePath: editor.document.uri.fsPath });
+        
+        RuntimeHighlighter.getInstance().setTrace(trace, editor.document.uri.fsPath);
       } catch (err: any) {
         panel.sendError(err.message ?? String(err));
       }
     }),
 
     vscode.commands.registerCommand('mapmycode.visualizeSelection', async () => {
-      const editor = vscode.window.activeTextEditor;
+      const editor = resolveTargetEditor(lastCodeEditor);
       if (!editor || editor.selection.isEmpty) {
-        vscode.window.showWarningMessage('MapMyCode: No selection.');
+        vscode.window.showWarningMessage('MapMyCode: No selection found in the current code editor.');
         return;
       }
+      lastCodeEditor = editor;
       const code = editor.document.getText(editor.selection);
       const lang = mapLanguageId(editor.document.languageId);
       if (!lang) {
@@ -102,8 +248,16 @@ export function activate(context: vscode.ExtensionContext) {
       }
       const panel = MapMyCodePanel.createOrShow(context);
       try {
-        const trace = await executor.execute(code, lang);
+        const trace = await executor.execute(code, lang, editor.document.uri.fsPath);
+        lastTrace = trace;
         panel.sendTrace(trace);
+        panel.sendComplexity(analyzeComplexity(trace));
+        historyStore.recordTrace(trace, {
+          sourcePath: editor.document.uri.fsPath,
+          title: `Selection: ${path.basename(editor.document.uri.fsPath)}`,
+        });
+        
+        RuntimeHighlighter.getInstance().setTrace(trace, editor.document.uri.fsPath);
       } catch (err: any) {
         panel.sendError(err.message ?? String(err));
       }
@@ -118,6 +272,10 @@ export function activate(context: vscode.ExtensionContext) {
         const panel = MapMyCodePanel.createOrShow(context);
         panel.sendTemplate(pick.detail ?? '', pick.description ?? 'javascript');
       }
+    }),
+
+    vscode.commands.registerCommand('mapmycode.configureApp', () => {
+      vscode.commands.executeCommand('workbench.action.openSettings', 'mapmycode.appViz');
     }),
 
     vscode.commands.registerCommand('mapmycode.visualizeApp', async () => {
@@ -165,6 +323,7 @@ export function activate(context: vscode.ExtensionContext) {
 
       const panel = MapMyCodePanel.createOrShow(context);
       panel.sendAppStructure(structure);
+      historyStore.recordAppStructure(structure, rootPath);
 
       // Start trace server for live request monitoring
       try {
@@ -176,20 +335,22 @@ export function activate(context: vscode.ExtensionContext) {
         // Create launcher
         appLauncher = new AppLauncher(context.extensionPath);
 
-        // Listen for start/stop messages from webview
-        panel.onMessage((msg) => {
-          if (msg.type === 'startApp') {
-            appLauncher?.launch(framework, port).then(() => {
-              panel.sendAppStatus(true);
-            }).catch((err) => {
-              panel.sendError(`Failed to start app: ${err.message}`);
-            });
-          }
-          if (msg.type === 'stopApp') {
-            appLauncher?.stop();
-            panel.sendAppStatus(false);
-          }
-        });
+        if (appMessagePanel !== panel) {
+          panel.onMessage((msg) => {
+            if (msg.type === 'startApp') {
+              appLauncher?.launch(framework, port).then(() => {
+                panel.sendAppStatus(true);
+              }).catch((err) => {
+                panel.sendError(`Failed to start app: ${err.message}`);
+              });
+            }
+            if (msg.type === 'stopApp') {
+              appLauncher?.stop();
+              panel.sendAppStatus(false);
+            }
+          });
+          appMessagePanel = panel;
+        }
       } catch (err: any) {
         vscode.window.showErrorMessage(`MapMyCode: Failed to start trace server — ${err.message}`);
       }
@@ -220,18 +381,20 @@ export function activate(context: vscode.ExtensionContext) {
       await exporter.exportJSON(lastTrace);
     }),
 
-    // Codebase visualization commands
-    vscode.commands.registerCommand('mapmycode.visualizeCodebase', async () => {
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      if (!workspaceFolders || workspaceFolders.length === 0) {
-        vscode.window.showWarningMessage('MapMyCode: Open a workspace folder first.');
+    vscode.commands.registerCommand('mapmycode.exportMarkdown', async (step?: number) => {
+      if (!lastTrace) {
+        vscode.window.showWarningMessage('MapMyCode: No trace to export. Run a visualization first.');
         return;
       }
-      const rootPath = workspaceFolders[0].uri.fsPath;
+      await exporter.exportMarkdownReport(lastTrace, step);
+    }),
 
+    // Codebase visualization commands
+    vscode.commands.registerCommand('mapmycode.visualizeCodebase', async () => {
       const viewType = await vscode.window.showQuickPick([
+        { label: '$(references) Dependency Network', description: 'dependencies' },
+        { label: '$(graph) Call Graph', description: 'callGraph' },
         { label: '$(files) File Structure', description: 'fileTree' },
-        { label: '$(references) Dependency Graph', description: 'dependencies' },
         { label: '$(symbol-class) Class Diagram', description: 'classDiagram' },
         { label: '$(dashboard) Code Metrics', description: 'metrics' },
         { label: '$(git-commit) Git History', description: 'gitHistory' },
@@ -239,44 +402,37 @@ export function activate(context: vscode.ExtensionContext) {
 
       if (!viewType) return;
 
-      const panel = MapMyCodePanel.createOrShow(context);
-
-      try {
-        switch (viewType.description) {
-          case 'fileTree': {
-            const tree = buildFileTree(rootPath);
-            (panel as any).panel?.webview?.postMessage({ type: 'codebaseView', data: { view: 'fileTree', payload: tree } });
-            break;
-          }
-          case 'dependencies': {
-            const graph = analyzeDependencies(rootPath);
-            (panel as any).panel?.webview?.postMessage({ type: 'codebaseView', data: { view: 'dependencies', payload: graph } });
-            break;
-          }
-          case 'classDiagram': {
-            const classes = analyzeClasses(rootPath);
-            (panel as any).panel?.webview?.postMessage({ type: 'codebaseView', data: { view: 'classDiagram', payload: classes } });
-            break;
-          }
-          case 'metrics': {
-            const metrics = analyzeCodeMetrics(rootPath);
-            (panel as any).panel?.webview?.postMessage({ type: 'codebaseView', data: { view: 'metrics', payload: metrics } });
-            break;
-          }
-          case 'gitHistory': {
-            const commits = await getGitHistory(rootPath);
-            (panel as any).panel?.webview?.postMessage({ type: 'codebaseView', data: { view: 'gitHistory', payload: commits } });
-            break;
-          }
-        }
-      } catch (err: any) {
-        panel.sendError(`Codebase analysis failed: ${err.message}`);
-      }
+      await showCodebaseView(viewType.description as CodebaseViewType);
     }),
   );
 }
 
 export function deactivate() {}
+
+function resolveTargetEditor(lastCodeEditor?: vscode.TextEditor): vscode.TextEditor | undefined {
+  if (isSupportedEditor(vscode.window.activeTextEditor)) {
+    return vscode.window.activeTextEditor;
+  }
+
+  if (isSupportedEditor(lastCodeEditor) && vscode.window.visibleTextEditors.includes(lastCodeEditor)) {
+    return lastCodeEditor;
+  }
+
+  return vscode.window.visibleTextEditors.find((editor) => isSupportedEditor(editor));
+}
+
+function isSupportedEditor(editor: vscode.TextEditor | undefined): editor is vscode.TextEditor {
+  if (!editor) {
+    return false;
+  }
+
+  const scheme = editor.document.uri.scheme;
+  if (scheme !== 'file' && scheme !== 'untitled') {
+    return false;
+  }
+
+  return mapLanguageId(editor.document.languageId) !== null;
+}
 
 function mapLanguageId(langId: string): 'javascript' | 'python' | null {
   if (langId === 'javascript' || langId === 'typescript' || langId === 'javascriptreact' || langId === 'typescriptreact') {

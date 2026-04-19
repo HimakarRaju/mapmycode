@@ -57,7 +57,7 @@ export function DependencyGraphView({ graph, onNodeClick }: Props) {
           const isExternal = externalNodes.includes(node);
           const label = node.length > 20 ? '...' + node.slice(-18) : node;
           return (
-            <g key={i} onClick={() => onNodeClick?.(node)} style={{ cursor: 'pointer' }}>
+            <g key={i} onClick={() => !isExternal && onNodeClick?.(node)} style={{ cursor: isExternal ? 'default' : 'pointer' }}>
               <circle cx={pos.x} cy={pos.y} r={6}
                 fill={isExternal ? '#e67e22' : '#007acc'} />
               <text x={pos.x + 10} y={pos.y + 4} fontSize={9}

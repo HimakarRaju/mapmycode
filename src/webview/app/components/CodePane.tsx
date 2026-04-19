@@ -4,10 +4,11 @@ interface CodePaneProps {
   code: string;
   activeLine: number | null;
   language: string;
+  filename?: string;
   onLineClick?: (line: number) => void;
 }
 
-export function CodePane({ code, activeLine, language, onLineClick }: CodePaneProps) {
+export function CodePane({ code, activeLine, language, filename, onLineClick }: CodePaneProps) {
   if (!code) {
     return (
       <div style={styles.empty}>
@@ -22,6 +23,11 @@ export function CodePane({ code, activeLine, language, onLineClick }: CodePanePr
     <div style={styles.container}>
       <div style={styles.header}>
         <span style={styles.langBadge}>{language}</span>
+        {filename && (
+          <span style={styles.filenameBadge}>
+            {filename.split(/[\/\\]/).pop()}
+          </span>
+        )}
       </div>
       <div style={styles.codeArea}>
         <table style={styles.table}>
@@ -69,6 +75,12 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--vscode-badge-background)',
     color: 'var(--vscode-badge-foreground)',
     textTransform: 'uppercase' as const,
+  },
+  filenameBadge: {
+    marginLeft: 8,
+    fontSize: 11,
+    opacity: 0.8,
+    fontFamily: 'var(--vscode-editor-font-family, monospace)',
   },
   codeArea: {
     flex: 1,

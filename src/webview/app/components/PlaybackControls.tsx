@@ -14,6 +14,9 @@ interface PlaybackControlsProps {
   onSpeedChange: (speed: number) => void;
   onZoomChange: (zoom: number) => void;
   onStepChange: (step: number) => void;
+  onExportStep: (step: number) => void;
+  onExportHTML: () => void;
+  onExportJSON: () => void;
   disabled: boolean;
 }
 
@@ -21,7 +24,8 @@ export function PlaybackControls(props: PlaybackControlsProps) {
   const {
     isPlaying, currentStep, totalSteps, speed, zoom,
     onPlay, onPause, onStepForward, onStepBackward, onReset,
-    onSpeedChange, onZoomChange, onStepChange, disabled,
+    onSpeedChange, onZoomChange, onStepChange, onExportStep,
+    onExportHTML, onExportJSON, disabled,
   } = props;
 
   return (
@@ -92,6 +96,18 @@ export function PlaybackControls(props: PlaybackControlsProps) {
           title={`Zoom: ${(zoom * 100).toFixed(0)}%`}
         />
         <span style={styles.value}>{(zoom * 100).toFixed(0)}%</span>
+      </div>
+
+      <div style={{...styles.group, marginLeft: 'auto'}}>
+        <button style={styles.btn} onClick={() => onExportStep(currentStep)} disabled={disabled} title="Export Trace at Current Step as Markdown">
+          Export MD
+        </button>
+        <button style={styles.btn} onClick={onExportHTML} disabled={disabled} title="Export Trace as HTML">
+          Export HTML
+        </button>
+        <button style={styles.btn} onClick={onExportJSON} disabled={disabled} title="Export Trace Data as JSON">
+          Export JSON
+        </button>
       </div>
     </div>
   );

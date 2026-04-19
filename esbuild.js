@@ -1,3 +1,4 @@
+/// <reference types="node" />
 // @ts-check
 const esbuild = require('esbuild');
 const fs = require('fs');

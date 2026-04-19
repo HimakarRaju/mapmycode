@@ -169,7 +169,7 @@ async function findFiles(root: string, pattern: string, maxDepth: number): Promi
       return;
     }
     for (const entry of entries) {
-      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === '__pycache__' || entry.name === 'venv' || entry.name === '.venv') {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === '__pycache__' || entry.name === 'venv' || entry.name === '.venv' || entry.name === '.mapmycode') {
         continue;
       }
       const full = path.join(dir, entry.name);

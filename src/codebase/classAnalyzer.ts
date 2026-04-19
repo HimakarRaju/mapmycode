@@ -83,7 +83,7 @@ function extractMembers(content: string, classStart: number): { methods: string[
 
 function collectSourceFiles(dir: string, maxFiles = 300): string[] {
   const results: string[] = [];
-  const ignore = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__']);
+  const ignore = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__', '.mapmycode']);
   const extensions = ['.ts', '.tsx', '.js', '.jsx'];
 
   function walk(d: string) {

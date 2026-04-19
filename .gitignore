@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.vsix
 .vscode-test/
+.mapmycode/
+
+archive/
+.playwright-mcp/
+python/__pycache__/

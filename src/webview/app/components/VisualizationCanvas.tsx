@@ -11,6 +11,7 @@ import { HashMapRenderer } from '../renderers/HashMapRenderer';
 import { SetRenderer } from '../renderers/SetRenderer';
 import { HistogramRenderer } from '../renderers/HistogramRenderer';
 import { FunctionCallTree } from '../renderers/FunctionCallTree';
+import { ObjectRenderer } from '../renderers/ObjectRenderer';
 
 interface VisualizationCanvasProps {
   trace: ExecutionTrace;
@@ -117,6 +118,16 @@ export function VisualizationCanvas({ trace, currentStep, zoom }: VisualizationC
         </div>
       )}
 
+      {/* Objects */}
+      {grouped.objects.length > 0 && (
+        <div style={styles.section}>
+          <div style={styles.sectionTitle}>Objects</div>
+          {grouped.objects.map((v) => (
+            <ObjectRenderer key={v.name} variable={v} />
+          ))}
+        </div>
+      )}
+
       {/* Function Call Tree */}
       {hasCalls && (
         <FunctionCallTree trace={trace} currentStep={currentStep} />
@@ -125,7 +136,7 @@ export function VisualizationCanvas({ trace, currentStep, zoom }: VisualizationC
       {/* Variables table for primitives */}
       <div style={styles.section}>
         <div style={styles.sectionTitle}>Variables</div>
-        <VariablesPanel variables={step.variables} />
+        <VariablesPanel variables={grouped.primitives} />
       </div>
 
       {/* Function info */}
@@ -168,39 +179,133 @@ function groupVariables(step: TraceStep, annotations?: AnnotationConfig): Groupe
   const histVars = annotations?.hist || [];
 
   for (const v of step.variables) {
+    const normalized = {
+      ...v,
+      dsType: inferVisualizationType(v),
+    };
+
     // Check for histogram annotation override
-    if (histVars.includes(v.name) && (v.dsType === 'array' || v.dsType === 'array2d')) {
-      result.histograms.push(v);
+    if (histVars.includes(v.name) && (normalized.dsType === 'array' || normalized.dsType === 'array2d')) {
+      result.histograms.push(normalized);
       continue;
     }
 
-    const dsType: DataStructureType = v.dsType;
+    const dsType: DataStructureType = normalized.dsType;
     switch (dsType) {
       case 'array':
       case 'array2d':
-        result.arrays.push(v); break;
+        result.arrays.push(normalized); break;
       case 'stack':
-        result.stacks.push(v); break;
+        result.stacks.push(normalized); break;
       case 'queue':
-        result.queues.push(v); break;
+        result.queues.push(normalized); break;
       case 'linkedList':
-        result.linkedLists.push(v); break;
+        result.linkedLists.push(normalized); break;
       case 'binaryTree':
-        result.binaryTrees.push(v); break;
+        result.binaryTrees.push(normalized); break;
       case 'graph':
-        result.graphs.push(v); break;
+        result.graphs.push(normalized); break;
       case 'hashMap':
-        result.hashMaps.push(v); break;
+        result.hashMaps.push(normalized); break;
       case 'set':
-        result.sets.push(v); break;
+        result.sets.push(normalized); break;
       case 'primitive':
-        result.primitives.push(v); break;
+        result.primitives.push(normalized); break;
       default:
-        result.objects.push(v); break;
+        result.objects.push(normalized); break;
     }
   }
 
   return result;
+}
+
+function inferVisualizationType(variable: TrackedVariable): DataStructureType {
+  if (variable.dsType !== 'object' && variable.dsType !== 'unknown') {
+    return normalizeNameBasedType(variable.name, variable.dsType, variable.value);
+  }
+
+  const inferredFromValue = inferTypeFromValue(variable.value);
+  return normalizeNameBasedType(variable.name, inferredFromValue, variable.value);
+}
+
+function normalizeNameBasedType(name: string, type: DataStructureType, value: any): DataStructureType {
+  const normalizedName = name.toLowerCase();
+
+  if ((type === 'array' || type === 'array2d') && normalizedName.includes('stack')) {
+    return 'stack';
+  }
+
+  if ((type === 'array' || type === 'array2d') && (normalizedName.includes('queue') || normalizedName.includes('deque'))) {
+    return 'queue';
+  }
+
+  if ((type === 'hashMap' || type === 'object') && normalizedName.includes('graph') && looksLikeGraph(value)) {
+    return 'graph';
+  }
+
+  return type;
+}
+
+function inferTypeFromValue(value: any): DataStructureType {
+  if (value === null || value === undefined) {
+    return 'primitive';
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length > 0 && Array.isArray(value[0])) {
+      return 'array2d';
+    }
+    return 'array';
+  }
+
+  if (typeof value !== 'object') {
+    return 'primitive';
+  }
+
+  if (looksLikeLinkedList(value)) {
+    return 'linkedList';
+  }
+
+  if (looksLikeBinaryTree(value)) {
+    return 'binaryTree';
+  }
+
+  if (looksLikeGraph(value)) {
+    return 'graph';
+  }
+
+  if (Object.keys(value).length > 0) {
+    return 'hashMap';
+  }
+
+  return 'object';
+}
+
+function looksLikeLinkedList(value: any): boolean {
+  return Boolean(value && typeof value === 'object' && 'next' in value && ('val' in value || 'value' in value || 'data' in value));
+}
+
+function looksLikeBinaryTree(value: any): boolean {
+  return Boolean(value && typeof value === 'object' && ('left' in value || 'right' in value) && ('val' in value || 'value' in value || 'data' in value));
+}
+
+function looksLikeGraph(value: any): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const entries = Object.entries(value).slice(0, 12);
+  if (entries.length === 0) {
+    return false;
+  }
+
+  return entries.every(([, neighbors]) => {
+    if (Array.isArray(neighbors)) {
+      return neighbors.every((neighbor) => ['string', 'number'].includes(typeof neighbor) || (neighbor && typeof neighbor === 'object' && ('to' in neighbor || 'node' in neighbor)));
+    }
+
+    return Boolean(neighbors && typeof neighbors === 'object' && ('neighbors' in neighbors || 'edges' in neighbors));
+  });
 }
 
 const styles: Record<string, React.CSSProperties> = {

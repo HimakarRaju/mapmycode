@@ -43,6 +43,24 @@
   "contributes": {
     "commands": [
       {
+        "command": "mapmycode.configureApp",
+        "title": "Setup Web App Tracing",
+        "category": "MapMyCode",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "mapmycode.configureApp",
+        "title": "Setup Web App Tracing",
+        "category": "MapMyCode",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "mapmycode.openPanel",
+        "title": "Open MapMyCode Panel",
+        "category": "MapMyCode",
+        "icon": "$(layout-panel)"
+      },
+      {
         "command": "mapmycode.visualize",
         "title": "Visualize Current File",
         "category": "MapMyCode",
@@ -80,16 +98,123 @@
       {
         "command": "mapmycode.exportJSON",
         "title": "Export Trace as JSON",
-        "category": "MapMyCode"
+          "category": "MapMyCode",
+          "icon": "$(file-code)"
+      },
+      {
+        "command": "mapmycode.exportMarkdown",
+        "title": "Export Trace as Mermaid.js Report",
+        "category": "MapMyCode",
+        "icon": "$(markdown)"
       },
       {
         "command": "mapmycode.visualizeCodebase",
         "title": "Visualize Codebase",
         "category": "MapMyCode",
         "icon": "$(type-hierarchy)"
+      },
+      {
+        "command": "mapmycode.showDependencyNetwork",
+        "title": "Open Dependency Network",
+        "category": "MapMyCode",
+        "icon": "$(references)"
+      },
+      {
+        "command": "mapmycode.showCallGraph",
+        "title": "Open Call Graph",
+        "category": "MapMyCode",
+        "icon": "$(graph-line)"
+      },
+      {
+        "command": "mapmycode.refreshHistory",
+        "title": "Refresh Trace History",
+        "category": "MapMyCode",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mapmycode.clearHistory",
+        "title": "Clear Trace History",
+        "category": "MapMyCode",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mapmycode.deleteHistoryEntry",
+        "title": "Delete History Entry",
+        "category": "MapMyCode",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mapmycode.clearHistory",
+        "title": "Clear Trace History",
+        "category": "MapMyCode",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mapmycode.deleteHistoryEntry",
+        "title": "Delete History Entry",
+        "category": "MapMyCode",
+        "icon": "$(trash)"
       }
     ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mapmycode",
+          "title": "MapMyCode",
+          "icon": "media/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "mapmycode": [
+        {
+          "id": "mapmycode.explore",
+          "name": "Explore"
+        },
+        {
+          "id": "mapmycode.history",
+          "name": "Recent Traces"
+        }
+      ]
+    },
     "menus": {
+      "view/title": [
+        {
+          "command": "mapmycode.exportHTML",
+          "when": "view == mapmycode.explore",
+          "group": "navigation"
+        },
+        {
+          "command": "mapmycode.exportJSON",
+          "when": "view == mapmycode.explore",
+          "group": "navigation"
+        },
+        {
+          "command": "mapmycode.exportMarkdown",
+          "when": "view == mapmycode.explore",
+          "group": "navigation"
+        },
+        {
+          "command": "mapmycode.openPanel",
+          "when": "view == mapmycode.explore",
+          "group": "navigation"
+        },
+        {
+          "command": "mapmycode.refreshHistory",
+          "when": "view == mapmycode.history",
+          "group": "navigation"
+        },
+        {
+          "command": "mapmycode.clearHistory",
+          "when": "view == mapmycode.history",
+          "group": "navigation"
+        },
+        {
+          "command": "mapmycode.clearHistory",
+          "when": "view == mapmycode.history",
+          "group": "navigation"
+        }
+      ],
       "editor/title": [
         {
           "command": "mapmycode.visualize",
@@ -110,6 +235,9 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "mapmycode.openPanel"
+        },
         {
           "command": "mapmycode.visualize",
           "when": "resourceLangId == javascript || resourceLangId == python || resourceLangId == typescript"
@@ -134,7 +262,25 @@
           "command": "mapmycode.exportJSON"
         },
         {
+          "command": "mapmycode.exportMarkdown"
+        },
+        {
           "command": "mapmycode.visualizeCodebase"
+        },
+        {
+          "command": "mapmycode.showDependencyNetwork"
+        },
+        {
+          "command": "mapmycode.showCallGraph"
+        },
+        {
+          "command": "mapmycode.refreshHistory"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mapmycode.deleteHistoryEntry",
+          "when": "view == mapmycode.history && viewItem == historyEntry"
         }
       ]
     },
@@ -167,6 +313,33 @@
           "minimum": 0.1,
           "maximum": 10,
           "description": "Default playback speed multiplier."
+        },
+        "mapmycode.appViz.startCommand": {
+          "type": "string",
+          "default": "python app.py",
+          "description": "Custom command to start your web app. If empty, MapMyCode auto-generates a launcher script."
+        },
+        "mapmycode.appViz.appPort": {
+          "type": "number",
+          "default": 5000,
+          "description": "Specific port to expose the web app on. Defaults to 5000 for Flask and 8000 for FastAPI."
+        },
+        "mapmycode.htmlExport.theme": {
+          "type": "string",
+          "enum": ["dark", "light"],
+          "default": "dark",
+          "description": "Theme for HTML exports."
+        },
+        "mapmycode.htmlExport.customCSS": {
+          "type": "string",
+          "default": "",
+          "description": "Custom CSS styles to inject into HTML exports."
+        },
+        "mapmycode.htmlExport.layoutDirection": {
+          "type": "string",
+          "enum": ["row", "column"],
+          "default": "row",
+          "description": "Visual layout direction for HTML export: row (side-by-side) or column (vertical stack)."
         }
       }
     }

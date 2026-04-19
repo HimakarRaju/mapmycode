@@ -81,7 +81,7 @@ function resolveImport(specifier: string, fromFile: string, rootPath: string): s
 
 function collectFiles(dir: string, extensions: string[], maxFiles = 500): string[] {
   const results: string[] = [];
-  const ignore = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__', 'coverage']);
+  const ignore = new Set(['node_modules', '.git', 'dist', 'build', '__pycache__', 'coverage', '.mapmycode']);
 
   function walk(d: string) {
     if (results.length >= maxFiles) return;

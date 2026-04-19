@@ -2,8 +2,9 @@ import * as vscode from 'vscode';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 import type { FrameworkInfo } from './frameworkDetector';
+import { getArtifactDirectory } from '../utils/artifactDirectory';
+import { resolvePythonInterpreter } from '../utils/pythonInterpreter';
 
 /**
  * Launches a web application with tracing middleware injected.
@@ -63,10 +64,10 @@ export class AppLauncher {
   private async launchPython(framework: FrameworkInfo, tracePort: number) {
     // Create a wrapper script that imports the tracer and runs the app
     const wrapperCode = this.buildPythonWrapper(framework, tracePort);
-    const tmpFile = path.join(os.tmpdir(), `mapmycode_launcher_${Date.now()}.py`);
+    const tmpFile = path.join(getArtifactDirectory(framework.projectRoot), `mapmycode_launcher_${Date.now()}.py`);
     fs.writeFileSync(tmpFile, wrapperCode, 'utf-8');
 
-    const pythonPath = this.getPythonPath();
+    const pythonPath = await this.getPythonPath(framework.entryFile, framework.projectRoot);
     this.outputChannel.appendLine(`[MapMyCode] Python: ${pythonPath}`);
     this.outputChannel.appendLine(`[MapMyCode] Wrapper: ${tmpFile}`);
 
@@ -96,7 +97,7 @@ export class AppLauncher {
 
     // Create a wrapper that requires the tracer then the app
     const wrapperCode = this.buildNodeWrapper(framework, tracePort);
-    const tmpFile = path.join(os.tmpdir(), `mapmycode_launcher_${Date.now()}.js`);
+    const tmpFile = path.join(getArtifactDirectory(framework.projectRoot), `mapmycode_launcher_${Date.now()}.js`);
     fs.writeFileSync(tmpFile, wrapperCode, 'utf-8');
 
     const nodePath = this.getNodePath();
@@ -124,33 +125,57 @@ export class AppLauncher {
     const tracerDir = path.join(this.extensionPath, 'python').replace(/\\/g, '\\\\');
     const entryDir = path.dirname(framework.entryFile).replace(/\\/g, '\\\\');
     const entryModule = path.basename(framework.entryFile, '.py');
+    const config = vscode.workspace.getConfiguration('mapmycode.appViz');
+    const appPort = config.get<number>('appPort') || (framework.type === 'fastapi' ? 8000 : 5000);
 
     if (framework.type === 'flask') {
+      const escapedEntryFile = framework.entryFile.replace(/\\\\/g, '\\\\\\\\');
       return `
 import sys
+import os
+import runpy
+
 sys.path.insert(0, "${tracerDir}")
 sys.path.insert(0, "${entryDir}")
 from flask_tracer import inject_tracer
-import importlib
+from flask import Flask
 
-# Import the user's app module
-mod = importlib.import_module("${entryModule}")
+_original_run = Flask.run
+def patched_flask_run(self, *args, **kwargs):
+    inject_tracer(self, ${tracePort})
+    print("[MapMyCode] Flask app instrumented. Starting on port " + str(kwargs.get('port', ${appPort})))
+    kwargs['use_reloader'] = False
+    try:
+        return _original_run(self, *args, **kwargs)
+    except TypeError as e:
+        if 'allow_unsafe_werkzeug' in str(e):
+            kwargs.pop('allow_unsafe_werkzeug', None)
+            return _original_run(self, *args, **kwargs)
+        raise
 
-# Find the Flask app object
-app = None
-for attr_name in dir(mod):
-    attr = getattr(mod, attr_name)
-    if hasattr(attr, 'route') and hasattr(attr, 'before_request'):
-        app = attr
-        break
+Flask.run = patched_flask_run
 
-if app is None:
-    print("[MapMyCode] Could not find Flask app instance.", file=sys.stderr)
-    sys.exit(1)
+try:
+    from flask_socketio import SocketIO
+    _original_socketio_run = SocketIO.run
+    def patched_socketio_run(self, app, *args, **kwargs):
+        inject_tracer(app, ${tracePort})
+        print("[MapMyCode] SocketIO app instrumented. Starting on port " + str(kwargs.get('port', ${appPort})))
+        kwargs['use_reloader'] = False
+        try:
+            return _original_socketio_run(self, app, *args, **kwargs)
+        except TypeError as e:
+            if 'allow_unsafe_werkzeug' in str(e):
+                kwargs.pop('allow_unsafe_werkzeug', None)
+                return _original_socketio_run(self, app, *args, **kwargs)
+            raise
+    SocketIO.run = patched_socketio_run
+except ImportError:
+    pass
 
-inject_tracer(app, ${tracePort})
-print("[MapMyCode] Flask app instrumented. Starting with tracing on port ${tracePort}...")
-app.run(debug=False, use_reloader=False)
+os.environ['WERKZEUG_RUN_MAIN'] = 'true'
+
+runpy.run_path("${escapedEntryFile}", run_name="__main__")
 `;
     }
 
@@ -160,6 +185,7 @@ import sys
 sys.path.insert(0, "${tracerDir}")
 sys.path.insert(0, "${entryDir}")
 from fastapi_tracer import inject_tracer
+  from fastapi import FastAPI
 import importlib
 
 mod = importlib.import_module("${entryModule}")
@@ -167,9 +193,19 @@ mod = importlib.import_module("${entryModule}")
 app = None
 for attr_name in dir(mod):
     attr = getattr(mod, attr_name)
-    if hasattr(attr, 'add_middleware') and hasattr(attr, 'router'):
+    if isinstance(attr, FastAPI):
         app = attr
         break
+
+  if app is None:
+    factory = getattr(mod, 'create_app', None)
+    if callable(factory):
+      try:
+        candidate = factory()
+      except Exception:
+        candidate = None
+      if isinstance(candidate, FastAPI):
+        app = candidate
 
 if app is None:
     print("[MapMyCode] Could not find FastAPI app instance.", file=sys.stderr)
@@ -178,7 +214,7 @@ if app is None:
 inject_tracer(app, ${tracePort})
 print("[MapMyCode] FastAPI app instrumented. Starting with tracing on port ${tracePort}...")
 import uvicorn
-uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+uvicorn.run(app, host="127.0.0.1", port=${appPort}, log_level="info")
 `;
     }
 
@@ -243,9 +279,8 @@ require("${entryFile}");
     });
   }
 
-  private getPythonPath(): string {
-    const config = vscode.workspace.getConfiguration('mapmycode');
-    return config.get<string>('pythonPath', '') || (process.platform === 'win32' ? 'python' : 'python3');
+  private async getPythonPath(resourcePath?: string, preferredRoot?: string): Promise<string> {
+    return resolvePythonInterpreter(resourcePath, preferredRoot);
   }
 
   private getNodePath(): string {

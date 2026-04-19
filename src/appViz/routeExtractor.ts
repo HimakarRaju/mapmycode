@@ -314,7 +314,7 @@ function collectJSFiles(root: string): string[] {
 
 function walkFiles(root: string, extensions: string[], maxDepth: number): string[] {
   const results: string[] = [];
-  const ignored = new Set(['node_modules', '__pycache__', 'venv', '.venv', '.git', 'dist', 'build', '.tox', '.mypy_cache']);
+  const ignored = new Set(['node_modules', '__pycache__', 'venv', '.venv', '.git', 'dist', 'build', '.tox', '.mypy_cache', '.mapmycode']);
 
   const walk = (dir: string, depth: number) => {
     if (depth > maxDepth) return;

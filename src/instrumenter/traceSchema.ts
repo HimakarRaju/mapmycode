@@ -28,6 +28,7 @@ export interface TrackedVariable {
 export interface TraceStep {
   step: number;
   line: number;
+  file?: string;
   event: TraceEventType;
   variables: TrackedVariable[];
   functionName?: string;
@@ -46,6 +47,7 @@ export interface AnnotationConfig {
 export interface ExecutionTrace {
   language: SupportedLanguage;
   code: string;
+  files?: Record<string, string>;
   steps: TraceStep[];
   annotations: AnnotationConfig;
   error?: string;
