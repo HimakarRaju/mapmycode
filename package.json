@@ -2,7 +2,7 @@
   "name": "mapmycode",
   "displayName": "MapMyCode — Algorithm & Data Structure Visualizer",
   "description": "Visualize data structures, algorithms, and codebases in real time. Step-by-step playback, interactive graphs, and more.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "HimakarRaju",
   "repository": {
     "type": "git",
@@ -98,8 +98,8 @@
       {
         "command": "mapmycode.exportJSON",
         "title": "Export Trace as JSON",
-          "category": "MapMyCode",
-          "icon": "$(file-code)"
+        "category": "MapMyCode",
+        "icon": "$(file-code)"
       },
       {
         "command": "mapmycode.exportMarkdown",
@@ -326,7 +326,10 @@
         },
         "mapmycode.htmlExport.theme": {
           "type": "string",
-          "enum": ["dark", "light"],
+          "enum": [
+            "dark",
+            "light"
+          ],
           "default": "dark",
           "description": "Theme for HTML exports."
         },
@@ -337,7 +340,10 @@
         },
         "mapmycode.htmlExport.layoutDirection": {
           "type": "string",
-          "enum": ["row", "column"],
+          "enum": [
+            "row",
+            "column"
+          ],
           "default": "row",
           "description": "Visual layout direction for HTML export: row (side-by-side) or column (vertical stack)."
         }
