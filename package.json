@@ -6,11 +6,11 @@
   "publisher": "mapmycode",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mapmycode/mapmycode.git"
+    "url": "https://github.com/HimakarRaju/mapmycode.git"
   },
-  "homepage": "https://github.com/mapmycode/mapmycode#readme",
+  "homepage": "https://github.com/HimakarRaju/mapmycode#readme",
   "bugs": {
-    "url": "https://github.com/mapmycode/mapmycode/issues"
+    "url": "https://github.com/HimakarRaju/mapmycode/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
