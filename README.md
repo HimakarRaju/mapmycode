@@ -93,6 +93,8 @@ npm run package:vsix
 2. GitHub Actions builds the extension
 3. The workflow attaches `mapmycode.vsix` to the release
 
+See `PUBLISHING.md` for the GitHub release flow and Marketplace publication steps.
+
 ## Commands
 
 - `MapMyCode: Visualize Current File`
