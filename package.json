@@ -24,7 +24,7 @@
     "package.json"
   ],
   "engines": {
-    "vscode": "^1.116.0"
+    "vscode": "^1.70.0"
   },
   "categories": [
     "Visualization",
@@ -371,7 +371,7 @@
     "@types/node": "^25.6.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@types/vscode": "^1.116.0",
+    "@types/vscode": "^1.70.0",
     "@vscode/vsce": "^3.9.1",
     "d3": "^7.9.0",
     "esbuild": "^0.28.0",
