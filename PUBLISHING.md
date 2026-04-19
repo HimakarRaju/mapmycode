@@ -43,7 +43,7 @@ npm install
 4. Log in with:
 
 ```bash
-npx vsce login mapmycode
+npx vsce login HimakarRaju
 ```
 
 ### Publish a release

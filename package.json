@@ -3,7 +3,7 @@
   "displayName": "MapMyCode — Algorithm & Data Structure Visualizer",
   "description": "Visualize data structures, algorithms, and codebases in real time. Step-by-step playback, interactive graphs, and more.",
   "version": "0.1.0",
-  "publisher": "mapmycode",
+  "publisher": "HimakarRaju",
   "repository": {
     "type": "git",
     "url": "https://github.com/HimakarRaju/mapmycode.git"
