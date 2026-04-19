@@ -4,7 +4,7 @@
 [![Release VSIX](https://github.com/HimakarRaju/mapmycode/actions/workflows/release.yml/badge.svg)](https://github.com/HimakarRaju/mapmycode/actions/workflows/release.yml)
 [![Issues](https://img.shields.io/github/issues/HimakarRaju/mapmycode)](https://github.com/HimakarRaju/mapmycode/issues)
 
-[Project artwork](media/hero.svg)
+![MapMyCode artwork](media/hero.png)
 
 MapMyCode is a VS Code extension for turning source code into live visual explanations. It helps developers inspect algorithms, data structures, web app behavior, and codebase architecture from inside the editor.
 
@@ -92,8 +92,6 @@ npm run package:vsix
 1. Create and push a tag such as `v0.1.0`
 2. GitHub Actions builds the extension
 3. The workflow attaches `mapmycode.vsix` to the release
-
-See `PUBLISHING.md` for the GitHub release flow and Marketplace publication steps.
 
 ## Commands
 
