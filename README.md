@@ -113,7 +113,3 @@ npm run package:vsix
 - `src/codebase` for structural analysis views
 - `python` for Python tracing helpers
 - `middleware` for runtime instrumentation helpers
-
-## Next publish step
-
-The repo is ready for release packaging. The remaining manual step is Marketplace publication, which requires the correct VS Code publisher account and publishing credentials.
